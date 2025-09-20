@@ -29,7 +29,6 @@ classifiers = [
 ]
 dependencies = [
     "ass @ git+http://git@github.com/snake-biscuits/ass.git",
-    "breki @ git+http://git@github.com/snake-biscuits/breki.git",
 ]
 
 
