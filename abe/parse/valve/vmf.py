@@ -3,7 +3,7 @@ import re
 from typing import Dict, List
 
 from ... import texture
-from .. import base
+from ... import base
 from .. import common
 from . import map220
 

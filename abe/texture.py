@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from . import vector
+from ass import vector
 
 
 class ProjectionAxis:
