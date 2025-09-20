@@ -1,0 +1,38 @@
+# TODOs
+## tests
+ - [ ] `base`
+   - [ ] `Brush`
+   - [ ] `BrushSide`
+   - [x] `Entity`
+   - [ ] `MapFile`
+ - [ ] `parse`
+   - [ ] `common`
+     - [ ] `comment`
+     - [x] `double`
+     - [ ] `filepath`
+     - [ ] `integer`
+     - [ ] `key_value_pair`
+     - [ ] `point`
+     - [ ] `plane`
+     - [ ] `Plane`
+     - [ ] `TokenClass`
+   - [ ] `id_software`
+     - [ ] `BrushSide`
+     - [ ] `QuakeMap`
+   - [ ] `infinity_ward`
+     - [ ] `BrushSide`
+     - [ ] `CoD4Map`
+     - [ ] `Projection`
+   - [ ] `valve`
+     - [ ] `map220`
+       - [ ] `BrushSide`
+       - [ ] `ProjectionAxis`
+       - [ ] `Valve220Map`
+   - [ ] `valve`
+     - [ ] `vmf`
+       - [ ] `Brush`
+       - [ ] `BrushSide`
+       - [ ] `Entity`
+       - [ ] `Node`
+       - [ ] `ProjectionAxis`
+       - [ ] `Vmf`

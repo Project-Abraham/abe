@@ -1,12 +1,23 @@
 __all__ = [
-    "binary", "core", "geometry", "physics", "texture", "vector",
-    "Brush", "Entity", "MapFile"]
+    "base", "parse", "texture",
+    "Brush", "BrushSide", "Entity", "MapFile",
+    "CoD4Map", "QuakeMap", "Valve220Map", "Vmf",
+    "ProjectionAxis", "TextureVector"]
 
-from . import binary
-from . import core
-from . import geometry
-from . import physics
+from . import base
+from . import parse
 from . import texture
-from . import vector
 
-from .core import Brush, Entity, MapFile
+from .base import (
+    Brush,
+    BrushSide,
+    Entity,
+    MapFile)
+from .parse import (
+    CoD4Map,
+    QuakeMap,
+    Valve220Map,
+    Vmf)
+from .texture import (
+    ProjectionAxis,
+    TextureVector)
