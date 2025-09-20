@@ -32,8 +32,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install --upgrade pip
-        pip install "ass @ git+https://github.com/snake-biscuits/ass.git"
-        pip install "breki @ git+https://github.com/snake-biscuits/breki.git"
+        pip install -e .
         pip install flake8
         pip install pytest pytest-cov
     - name: Lint with flake8

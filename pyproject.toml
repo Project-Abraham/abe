@@ -28,8 +28,8 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules"
 ]
 dependencies = [
-    "ass @ git+ssh://git@github.com/snake-biscuits/ass.git",
-    "breki @ git+ssh://git@github.com/snake-biscuits/breki.git",
+    "ass @ git+http://git@github.com/snake-biscuits/ass.git",
+    "breki @ git+http://git@github.com/snake-biscuits/breki.git",
 ]
 
 
