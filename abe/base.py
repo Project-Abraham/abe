@@ -31,18 +31,8 @@ class Brush:
         return f"<Brush {len(self.sides)} sides @ 0x{id(self):012X}>"
 
     def as_model(self) -> geometry.Model:
-        # take a maximum bounds and slice it down plane by plane
-        # BrushSide -> Polygon
-        # a rotated cube wouldn't have polygons for it's axial faces
-        # since those get sliced into nothing
-        # but we'll need some floating point rounding magic to detect nothingness
-        raise NotImplementedError()
-        # AABB quads
-        # slice edges w/ each non-axial plane
-        # only respect in-bounds intersections
-        # slice edge by replacing A-B w/ A-S;S-B if A & B on opposite sides
-        # find the lerp(t) via plane.test(A) * -plane.normal
-        # keep the inside (back), discard the outside (front)
+        meshes = [side.as_mesh(self) for side in self.sides]
+        return geometry.Model(meshes)
 
     # TODO: catch bevel planes
     # -- found in Titanfall Engine trigger brushes
@@ -90,6 +80,46 @@ class BrushSide:
     def __repr__(self) -> str:
         # TODO: kwargs for texture axis & rotation (if shorter)
         return f"BrushSide({self.plane!r}, {self.shader!r}, ...)"
+
+    def __hash__(self):
+        return hash((self.plane, self.shader, self.texture_vector))
+
+    def __eq__(self, other: BrushSide) -> bool:
+        if isinstance(other, BrushSide):
+            return hash(self) == hash(other)
+        return False
+
+    def vertex_at(self, position: vector.vec3, parent: Brush = None) -> geometry.Vertex:
+        """override for alternate vertex projections"""
+        return geometry.Vertex(
+            position,
+            self.plane.normal,
+            self.texture_vector.uv_at(position))
+        # TODO: uv1 from lightmap projection
+        # TODO: colour from brush.editor node
+
+    def as_mesh(self, parent: Brush = None) -> geometry.Mesh:
+        material = geometry.Material(self.shader)
+        # polygon
+        raw_tri = getattr(self.plane, "_triangle", None)
+        if raw_tri is not None:  # TEMP: use raw_tri as a placeholder
+            assert len(raw_tri) == 3
+            assert all(isinstance(p, vector.vec3) for p in raw_tri)
+            positions = raw_tri
+        else:  # TODO: assemble poly from plane
+            positions = list()
+        if parent is not None:  # shape polygon w/ other sides
+            ...
+            # AABB quads
+            # slice edges w/ each non-axial plane
+            # only respect in-bounds intersections
+            # slice edge by replacing A-B w/ A-S;S-B if A & B on opposite sides
+            # find the lerp(t) via plane.test(A) * -plane.normal
+            # keep the inside (back), discard the outside (front)
+        polygon = geometry.Polygon([
+            self.vertex_at(position, parent)
+            for position in positions])
+        return geometry.Mesh(material, [polygon])
 
 
 class Entity:
