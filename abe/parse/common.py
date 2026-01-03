@@ -18,6 +18,14 @@ point = f"\\( ?{double} {double} {double} ?\\)"  # 9 groups
 plane = f"{point} {point} {point}"  # 27 groups
 
 
+def fstr(x: float) -> str:
+    """str(float) without trailing zeroes"""
+    x = round(x, 2)
+    if x % 1.0 == 0.0:
+        return str(int(x))
+    return str(x)
+
+
 class TokenClass:
     """helper class for text <-> object conversion"""
     pattern: re.Pattern  # compiled regex w/ groups
@@ -48,10 +56,7 @@ class Plane(physics.Plane, TokenClass):
             # force use of the loaded values
             # to avoid accuracy drift on re-save
             # due to floating point rounding errors
-        A = map(str, A)
-        B = map(str, B)
-        C = map(str, C)
-        return " ".join(["(", *A, ")", "(", *B, ")", "(", *C, ")"])
+        return " ".join(map(str, [Point(*A), Point(*B), Point(*C)]))
 
     @classmethod
     def from_tokens(cls, tokens: List[str]) -> Plane:
@@ -62,3 +67,22 @@ class Plane(physics.Plane, TokenClass):
         out = cls.from_triangle(A, B, C)
         out._triangle = (A, B, C)  # preserved to minimise data loss
         return out
+
+
+class Point(vector.vec3, TokenClass):
+    pattern = re.compile(point)
+
+    def __format__(self, format_spec: str = "") -> str:
+        if format_spec == "":
+            return str(self)
+        else:
+            x, y, z = [format(a, format_spec) for a in self]
+            return f"({x} {y} {z})"
+
+    def __str__(self):
+        x, y, z = map(fstr, self)
+        return f"({x} {y} {z})"
+
+    @classmethod
+    def from_tokens(cls, tokens: List[str]) -> Point:
+        return cls(*map(float, tokens[::3]))
