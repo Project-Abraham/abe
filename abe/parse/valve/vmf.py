@@ -48,8 +48,11 @@ class Node:
             "}"])
 
     def __setitem__(self, key: str, value: str):
-        index = self.key_values.index((key, self[key]))
-        self.key_values[index] = (key, value)
+        try:  # override
+            index = self.key_values.index((key, self[key]))
+            self.key_values[index] = (key, value)
+        except KeyError:
+            self.key_values.append((key, value))
 
     def __str__(self) -> str:
         # NOTE: key values are not sanitised
@@ -83,7 +86,7 @@ class Node:
 
     def update(self, kv_dict: Dict[str, str]):
         for key, value in kv_dict.items():
-            self.key_values[key] = value
+            self[key] = value
 
     def values(self) -> List[str]:
         return [value for key, value in self.key_values]
@@ -153,8 +156,8 @@ class Entity(base.Entity):
 
     def as_node(self) -> Node:
         out = Node("entity")
-        out.key_values = [(k, self[k]) for k in self._keys]
-        out.nodes = [b.as_node() for b in self.brushes]
+        out.key_values = [(key, self[key]) for key in self._keys]
+        out.nodes = [brush.as_node() for brush in self.brushes]
         return out
 
     @classmethod
@@ -176,10 +179,8 @@ class Vmf(base.MapFile, breki.TextFile):
         self.nodes = list()
 
     def as_lines(self) -> List[str]:
-        # TODO: try to match valve's node order:
-        # -- ???, world, entities, cameras, cordons
-        # TODO: entities & brushes -> nodes -> str
-        raise NotImplementedError()
+        self.rebuild_nodes()
+        return "\n".join(map(str, self.nodes))
 
     def nodes_by_type(self) -> Dict[str, List[Node]]:
         return {
@@ -236,7 +237,89 @@ class Vmf(base.MapFile, breki.TextFile):
             for node in [
                 nodes_dict["world"][0],
                 *nodes_dict.get("entity", [])]]
-        # self.nodes = [
-        #     node
-        #     for node in out.nodes
-        #     if node.node_type not in ("world", "entity")]
+
+    def rebuild_nodes(self):
+        new_nodes = list()
+        nodes_dict = self.nodes_by_type()
+
+        if "versioninfo" in nodes_dict:
+            assert len(nodes_dict["versioninfo"]) == 1
+            version_info = nodes_dict["versioninfo"][0]
+        else:
+            version_info = Node("versioninfo")
+            version_info.update({
+                "editorversion": 400,
+                "formatversion": 100,
+                "mapversion": 1,
+                "prefab": 0})
+        new_nodes.append(version_info)
+
+        if "visgroups" in nodes_dict:
+            assert len(nodes_dict["visgroups"]) == 1
+            visgroups = nodes_dict["visgroups"][0]
+        else:
+            visgroups = Node("visgroups")
+        new_nodes.append(visgroups)
+
+        if "viewsettings" in nodes_dict:
+            assert len(nodes_dict["viewsettings"]) == 1
+            view_settings = nodes_dict["viewsettings"][0]
+        else:
+            view_settings = Node("viewsettings")
+            view_settings.update({
+                "bShow3DGrid": 0,
+                "bShowGrid": 1,
+                "bShowLogicalGrid": 0,
+                "bSnapToGrid": 1,
+                "nGridSpacing": 16})
+        new_nodes.append(view_settings)
+
+        if len(self.entities) != 0:
+            worldspawn = self.entities[0]
+        else:  # empty world
+            worldspawn = Entity()
+
+        world_settings = {
+            "id": 1,
+            "mapversion": 1,
+            "classname": "worldspawn",
+            "maxpropscreenwidth": -1}
+        # TODO: default skyname & detailmaterial/vbsp from config
+        # use loaded world_settings, if they exist
+        if "world" in nodes_dict:
+            assert len(nodes_dict["world"]) == 1
+            world_node = nodes_dict["world"][0]
+            world_settings = {
+                key: world_node.get(key, world_settings[key])
+                for key in world_settings.keys()}
+
+        world_node = worldspawn.as_node()
+        world_node.node_type = "world"
+        world_node.update(world_settings)
+        new_nodes.append(world_node)
+
+        if len(self.entities) > 1:
+            new_nodes.extend([
+                entity.as_node()
+                for entity in self.entities[1:]])
+
+        if "cameras" in nodes_dict:
+            assert len(nodes_dict["cameras"]) == 1
+            cameras = nodes_dict["cameras"][0]
+        else:
+            cameras = Node("cameras")
+            cameras["activecamera"] = -1
+        new_nodes.append(cameras)
+
+        if "cordon" in nodes_dict:
+            cordons = nodes_dict["cordon"]
+        else:
+            cordon = Node("cordon")
+            cordon.update({
+                "mins": common.Point(-1024, -1024, -1024),
+                "maxs": common.Point(+1024, +1024, +1024),
+                "active": 0})
+            cordons = [cordon]
+        new_nodes.extend(cordons)
+
+        self.nodes = new_nodes
