@@ -52,6 +52,9 @@ class Node:
         self.key_values[index] = (key, value)
 
     def __str__(self) -> str:
+        # NOTE: key values are not sanitised
+        # -- double quotes & curly braces will break
+        # NOTE: child nodes will not be indented
         return "\n".join([
             self.node_type,
             "{",
@@ -76,14 +79,14 @@ class Node:
         return self.key_values
 
     def keys(self) -> List[str]:
-        return [k for k, v in self.key_values]
+        return [key for key, value in self.key_values]
 
     def update(self, kv_dict: Dict[str, str]):
-        for k, v in kv_dict.items():
-            self.key_values[k] = v
+        for key, value in kv_dict.items():
+            self.key_values[key] = value
 
     def values(self) -> List[str]:
-        return [v for k, v in self.key_values]
+        return [value for key, value in self.key_values]
 
     # CHILD NODE HANDLERS
 
@@ -105,7 +108,7 @@ class BrushSide(base.BrushSide):
     def as_node(self) -> Node:
         out = Node("side")
         key_values = {
-            "plane": common.Plane(*self.plane.as_triangle()).value,
+            "plane": common.Plane(*self.plane.as_triangle()),
             "material": self.shader,
             **{f"{axis}axis": projection
                for axis, projection in zip("uv", self.texture_vector)},
@@ -119,10 +122,10 @@ class BrushSide(base.BrushSide):
     @classmethod
     def from_node(cls, node: Node) -> BrushSide:
         assert node.node_type == "side"
-        plane = common.Plane.from_string(node["plane"]).value
+        plane = common.Plane.from_string(node["plane"])
         shader = node["material"]
         uaxis, vaxis = [
-            map220.ProjectionAxis.from_string(node[f"{axis}axis"]).value
+            map220.ProjectionAxis.from_string(node[f"{axis}axis"])
             for axis in "uv"]
         texture_vector = texture.TextureVector(uaxis, vaxis)
         rotation = node["rotation"]

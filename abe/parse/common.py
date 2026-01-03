@@ -14,7 +14,7 @@ double = r"([+-]?[0-9]+(\.[0-9]*)?(e[+-]?[0-9]+)?)"
 filepath = r"([A-Za-z0-9_\./\\:]+)"
 integer = r"([+-]?[0-9]+)"
 key_value_pair = r'"(.*)"\s"(.*)"'  # 2 groups
-point = f"\\( {double} {double} {double} \\)"  # 9 groups
+point = f"\\( ?{double} {double} {double} ?\\)"  # 9 groups
 plane = f"{point} {point} {point}"  # 27 groups
 
 
@@ -28,7 +28,7 @@ class TokenClass:
     @classmethod
     def from_string(cls, string: str) -> TokenClass:
         match = cls.pattern.match(string)
-        assert match is not None
+        assert match is not None, f"{string=}, {cls.pattern=}"
         return cls.from_tokens(match.groups())
 
     @classmethod
@@ -41,9 +41,16 @@ class Plane(physics.Plane, TokenClass):
     _triangle = None
 
     def __str__(self) -> str:
-        A, B, C = self.as_triangle() if self._triangle is None else self._triangle
-        # NOTE: self._triangle will override any changes
-        # -- self._triangle should be more accurate
+        if self._triangle is None:
+            A, B, C = self.as_triangle()
+        else:
+            A, B, C = self._triangle
+            # force use of the loaded values
+            # to avoid accuracy drift on re-save
+            # due to floating point rounding errors
+        A = map(str, A)
+        B = map(str, B)
+        C = map(str, C)
         return " ".join(["(", *A, ")", "(", *B, ")", "(", *C, ")"])
 
     @classmethod

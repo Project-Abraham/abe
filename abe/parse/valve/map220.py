@@ -10,8 +10,8 @@ from .. import id_software
 
 
 class ProjectionAxis(texture.ProjectionAxis, common.TokenClass):
-    pattern = re.compile(" ".join([
-        r"\[", *(common.double,)*4, r"\]"]))
+    pattern = re.compile("".join([
+        r"\[ ?", " ".join([common.double] * 4), r" ?\]"]))
 
     def __str__(self) -> str:
         return " ".join(map(str, ["[", *self.axis, self.offset, "]"]))
