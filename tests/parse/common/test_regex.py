@@ -61,7 +61,7 @@ double = {
     "unsigned exponent": ("8e9", None, "e9"),
     "signed exponent": ("+1e-10", None, "e-10"),
     "unsigned exponent w/ decimal": ("2.34e5", ".34", "e5"),
-    "signed exponent w/ decial": ("-6.78e+9", ".78", "e+9")}
+    "signed exponent w/ decimal": ("-6.78e+9", ".78", "e+9")}
 
 
 @pytest.mark.parametrize(
