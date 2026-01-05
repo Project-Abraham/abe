@@ -68,6 +68,12 @@ class Plane(physics.Plane, TokenClass):
         out._triangle = (A, B, C)  # preserved to minimise data loss
         return out
 
+    @classmethod
+    def from_triangle(cls, A: vector.vec3, B: vector.vec3, C: vector.vec3) -> Plane:
+        out = super().from_triangle(A, B, C)
+        out._triangle = (A, B, C)  # preserved to minimise data loss
+        return out
+
 
 class Point(vector.vec3, TokenClass):
     pattern = re.compile(point)

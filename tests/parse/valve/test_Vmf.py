@@ -1,5 +1,8 @@
+from abe import base
 from abe.parse import common
 from abe.parse import valve
+from ass import physics
+from ass import vector
 
 
 def test_rebuild_nodes():
@@ -65,3 +68,37 @@ def test_rebuild_nodes():
     assert len(cordon.nodes) == 0
 
     assert len(nodes_dict) == 6
+
+
+def test_single_brush():
+    vmf = valve.Vmf("untitiled.vmf")
+    worldspawn = base.Entity(classname="worldspawn")
+    bounds = physics.AABB.from_mins_maxs(
+        mins=vector.vec3(-3, -2, -1),
+        maxs=vector.vec3(4, 5, 6))
+    brush = base.Brush.from_bounds(bounds, "tools/toolsnodraw")
+    worldspawn.brushes.append(brush)
+    vmf.entities.append(worldspawn)
+
+    vmf.rebuild_nodes()
+    nodes_dict = vmf.nodes_by_type()
+
+    # checking worldspawn:solid#1:side#1.uaxis
+    assert "world" in nodes_dict
+    assert len(nodes_dict["world"]) == 1
+    world_node = nodes_dict["world"][0]
+    assert len(world_node.nodes) == 1
+    solid_node = world_node.nodes[0]
+    assert solid_node.node_type == "solid"
+    assert len(solid_node.nodes) == 6
+    side_node = solid_node.nodes[0]
+    assert side_node.node_type == "side"
+    uaxis = side_node.get("uaxis")
+    assert isinstance(uaxis, valve.map220.ProjectionAxis)
+    assert valve.map220.ProjectionAxis.pattern.match(str(uaxis))
+
+    assert all(side.node_type == "side" for side in solid_node.nodes)
+    # NOTE: no editor node (NotImplemented)
+
+    # TODO: validate further
+    # -- ids for solids & sides (NotImplemented)

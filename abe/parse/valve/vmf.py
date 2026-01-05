@@ -104,21 +104,18 @@ class Node:
                 for node in self.nodes))}
 
 
-# TODO: class DispInfo(generic.DispInfo):
+# TODO: class DispInfo(base.DispInfo):
 
 
 class BrushSide(base.BrushSide):
     def as_node(self) -> Node:
         out = Node("side")
-        key_values = {
-            "plane": common.Plane(*self.plane.as_triangle()),
-            "material": self.shader,
-            **{f"{axis}axis": projection
-               for axis, projection in zip("uv", self.texture_vector)},
-            "rotation": self.texture_rotation}
         out.update({
-            key: str(value)
-            for key, value in key_values.items()})
+            "plane": common.Plane.from_triangle(*self.plane.as_triangle()),
+            "material": self.shader,
+            **{f"{axis}axis": map220.ProjectionAxis(*projection)
+               for axis, projection in zip("uv", self.texture_vector)},
+            "rotation": self.texture_rotation})
         # TODO: dispinfo child node
         return out
 
@@ -139,8 +136,10 @@ class BrushSide(base.BrushSide):
 class Brush(base.Brush):
     def as_node(self) -> Node:
         out = Node("solid")
-        out.nodes = [side.as_node() for side in self.sides]
-        # NOTE: no editor node or entities
+        out.nodes = [
+            BrushSide.as_node(side)
+            for side in self.sides]
+        # NOTE: no editor or group nodes
         return out
 
     @classmethod
@@ -157,7 +156,9 @@ class Entity(base.Entity):
     def as_node(self) -> Node:
         out = Node("entity")
         out.key_values = [(key, self[key]) for key in self._keys]
-        out.nodes = [brush.as_node() for brush in self.brushes]
+        out.nodes = [
+            Brush.as_node(brush)
+            for brush in self.brushes]
         return out
 
     @classmethod
@@ -293,15 +294,17 @@ class Vmf(base.MapFile, breki.TextFile):
                 key: world_node.get(key, world_settings[key])
                 for key in world_settings.keys()}
 
-        world_node = worldspawn.as_node()
+        world_node = Entity.as_node(worldspawn)
         world_node.node_type = "world"
         world_node.update(world_settings)
         new_nodes.append(world_node)
+        # TODO: brush & brushside ids
 
         if len(self.entities) > 1:
             new_nodes.extend([
-                entity.as_node()
+                Entity.as_node(entity)
                 for entity in self.entities[1:]])
+        # TODO: entity, brush & brushside ids
 
         if "cameras" in nodes_dict:
             assert len(nodes_dict["cameras"]) == 1

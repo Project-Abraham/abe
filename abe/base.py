@@ -48,17 +48,33 @@ class Brush:
             normal = side.plane.normal.normalised()
             axes = {
                 math.isclose(getattr(normal, axis), sign): (axis, sign)
-                for axis in "xyz" for sign in (+1, -1)}
+                for axis in "xyz"
+                for sign in (+1, -1)}
             if True in axes:  # plane is axial (axis aligned)
                 # NOTE: do we need to invert plane distance to get bounds?
                 bounds[axes[True]] = side.plane.distance
                 out.axial_planes.append(side.plane)
             else:
                 out.other_planes.append(side.plane)
-            mins = vector.vec3(bounds.get((axis, -1), +math.inf) for axis in "xyz")
-            maxs = vector.vec3(bounds.get((axis, +1), -math.inf) for axis in "xyz")
+            mins = vector.vec3(
+                bounds.get((axis, -1), +math.inf)
+                for axis in "xyz")
+            maxs = vector.vec3(
+                bounds.get((axis, +1), -math.inf)
+                for axis in "xyz")
             out.bounds = physics.AABB.from_mins_maxs(mins, maxs)
         return out
+
+    @classmethod
+    def from_bounds(cls, bounds: physics.AABB, shader: str = None) -> Brush:
+        sides = list()
+        for axis in "xyz":
+            for sign, vec in [(+1, bounds.maxs), (-1, bounds.mins)]:
+                normal = vector.vec3(**{axis: sign})
+                distance = sign * getattr(vec, axis)
+                plane = physics.Plane(normal, distance)
+                sides.append(BrushSide(plane, shader))
+        return cls(sides)
 
 
 class BrushSide:

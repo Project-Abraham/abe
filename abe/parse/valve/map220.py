@@ -14,7 +14,10 @@ class ProjectionAxis(texture.ProjectionAxis, common.TokenClass):
         r"\[ ?", " ".join([common.double] * 4), r" ?\]"]))
 
     def __str__(self) -> str:
-        return " ".join(map(str, ["[", *self.axis, self.offset, "]"]))
+        # NOTE: scale is lost; multiply axis by scale?
+        axis = [common.fstr(a) for a in self.axis]
+        offset = common.fstr(self.offset)
+        return " ".join(["[", *axis, offset, "]"])
 
     @classmethod
     def from_tokens(cls, tokens: List[str]) -> ProjectionAxis:
