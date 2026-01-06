@@ -104,16 +104,13 @@ class Node:
                 for node in self.nodes))}
 
 
-# TODO: class DispInfo(base.DispInfo):
-
-
 class BrushSide(base.BrushSide):
     def as_node(self) -> Node:
         out = Node("side")
         out.update({
             "plane": common.Plane.from_triangle(*self.plane.as_triangle()),
             "material": self.shader,
-            **{f"{axis}axis": map220.ProjectionAxis(*projection)
+            **{f"{axis}axis": ProjectionAxis(*projection)
                for axis, projection in zip("uv", self.texture_vector)},
             "rotation": self.texture_rotation})
         # TODO: dispinfo child node
@@ -125,7 +122,7 @@ class BrushSide(base.BrushSide):
         plane = common.Plane.from_string(node["plane"])
         shader = node["material"]
         uaxis, vaxis = [
-            map220.ProjectionAxis.from_string(node[f"{axis}axis"])
+            ProjectionAxis.from_string(node[f"{axis}axis"])
             for axis in "uv"]
         texture_vector = texture.TextureVector(uaxis, vaxis)
         rotation = node["rotation"]
@@ -169,6 +166,29 @@ class Entity(base.Entity):
             Brush.from_node(node)
             for node in node.nodes_by_type().get("solid", [])]
         return out
+
+
+# TODO: class DispInfo(base.DispInfo):
+
+
+class ProjectionAxis(map220.ProjectionAxis):
+    pattern = re.compile("".join([
+        r"\[ ", " ".join([common.double] * 4), r" \] ", common.double]))
+
+    def __init__(self, axis, offset=None, scale=None):
+        scale = 0.25 if scale is None else scale
+        super().__init__(axis, offset, scale)
+
+    def __str__(self) -> str:
+        axis = [common.fstr(a) for a in self.axis]
+        offset = common.fstr(self.offset)
+        scale = common.fstr(self.scale)
+        return " ".join(["[", *axis, offset, "]", scale])
+
+    @classmethod
+    def from_tokens(cls, tokens: List[str]) -> ProjectionAxis:
+        x, y, z, offset, scale = map(float, tokens[::3])
+        return cls((x, y, z), offset, scale)
 
 
 class Vmf(base.MapFile, breki.TextFile):

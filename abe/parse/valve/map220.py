@@ -14,7 +14,7 @@ class ProjectionAxis(texture.ProjectionAxis, common.TokenClass):
         r"\[ ?", " ".join([common.double] * 4), r" ?\]"]))
 
     def __str__(self) -> str:
-        # NOTE: scale is lost; multiply axis by scale?
+        # NOTE: scale is included in BrushSide.__str__
         axis = [common.fstr(a) for a in self.axis]
         offset = common.fstr(self.offset)
         return " ".join(["[", *axis, offset, "]"])

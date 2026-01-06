@@ -94,8 +94,8 @@ def test_single_brush():
     side_node = solid_node.nodes[0]
     assert side_node.node_type == "side"
     uaxis = side_node.get("uaxis")
-    assert isinstance(uaxis, valve.map220.ProjectionAxis)
-    assert valve.map220.ProjectionAxis.pattern.match(str(uaxis))
+    assert isinstance(uaxis, valve.vmf.ProjectionAxis)
+    assert valve.vmf.ProjectionAxis.pattern.match(str(uaxis))
 
     assert all(side.node_type == "side" for side in solid_node.nodes)
     # NOTE: no editor node (NotImplemented)
