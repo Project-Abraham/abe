@@ -181,7 +181,7 @@ class Vmf(base.MapFile, breki.TextFile):
 
     def as_lines(self) -> List[str]:
         self.rebuild_nodes()
-        return "\n".join(map(str, self.nodes))
+        return list(map(str, self.nodes))
 
     def nodes_by_type(self) -> Dict[str, List[Node]]:
         return {
