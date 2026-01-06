@@ -17,6 +17,73 @@ import breki
 # TODO: visgroup filtering to find ents etc.
 
 
+class BrushSide(base.BrushSide):
+    def as_node(self) -> Node:
+        out = Node("side")
+        out.update({
+            "plane": common.Plane.from_triangle(*self.plane.as_triangle()),
+            "material": self.shader,
+            **{f"{axis}axis": ProjectionAxis(*projection)
+               for axis, projection in zip("uv", self.texture_vector)},
+            "rotation": self.texture_rotation})
+        # TODO: dispinfo child node
+        return out
+
+    @classmethod
+    def from_node(cls, node: Node) -> BrushSide:
+        assert node.node_type == "side"
+        plane = common.Plane.from_string(node["plane"])
+        shader = node["material"]
+        uaxis, vaxis = [
+            ProjectionAxis.from_string(node[f"{axis}axis"])
+            for axis in "uv"]
+        texture_vector = texture.TextureVector(uaxis, vaxis)
+        rotation = node["rotation"]
+        # TODO: node.nodes_by_type().get("dispinfo", [])
+        return cls(plane, shader, texture_vector, rotation)
+
+
+class Brush(base.Brush):
+    def as_node(self) -> Node:
+        out = Node("solid")
+        out.nodes = [
+            BrushSide.as_node(side)
+            for side in self.sides]
+        # NOTE: no editor or group nodes
+        return out
+
+    @classmethod
+    def from_node(cls, node: Node) -> Brush:
+        assert node.node_type == "solid"
+        return cls([
+            BrushSide.from_node(node)
+            for node in node.nodes_by_type().get("side", [])])
+
+
+class Entity(base.Entity):
+    # TODO: Connections (Entity IO)
+
+    def as_node(self) -> Node:
+        out = Node("entity")
+        out.key_values = [(key, self[key]) for key in self._keys]
+        out.nodes = [
+            Brush.as_node(brush)
+            for brush in self.brushes]
+        return out
+
+    @classmethod
+    def from_node(cls, node: Node) -> Entity:
+        assert node.node_type in ("entity", "world")
+        out = cls(**dict(node.key_values))
+        out.brushes = [
+            Brush.from_node(node)
+            for node in node.nodes_by_type().get("solid", [])]
+        return out
+
+
+# TODO: class DispInfo(base.DispInfo):
+
+
 class Node:
     node_type: str
     key_values: List[(str, str)]
@@ -102,73 +169,6 @@ class Node:
             for type_ in sorted(set(
                 node.node_type
                 for node in self.nodes))}
-
-
-class BrushSide(base.BrushSide):
-    def as_node(self) -> Node:
-        out = Node("side")
-        out.update({
-            "plane": common.Plane.from_triangle(*self.plane.as_triangle()),
-            "material": self.shader,
-            **{f"{axis}axis": ProjectionAxis(*projection)
-               for axis, projection in zip("uv", self.texture_vector)},
-            "rotation": self.texture_rotation})
-        # TODO: dispinfo child node
-        return out
-
-    @classmethod
-    def from_node(cls, node: Node) -> BrushSide:
-        assert node.node_type == "side"
-        plane = common.Plane.from_string(node["plane"])
-        shader = node["material"]
-        uaxis, vaxis = [
-            ProjectionAxis.from_string(node[f"{axis}axis"])
-            for axis in "uv"]
-        texture_vector = texture.TextureVector(uaxis, vaxis)
-        rotation = node["rotation"]
-        # TODO: node.nodes_by_type().get("dispinfo", [])
-        return cls(plane, shader, texture_vector, rotation)
-
-
-class Brush(base.Brush):
-    def as_node(self) -> Node:
-        out = Node("solid")
-        out.nodes = [
-            BrushSide.as_node(side)
-            for side in self.sides]
-        # NOTE: no editor or group nodes
-        return out
-
-    @classmethod
-    def from_node(cls, node: Node) -> Brush:
-        assert node.node_type == "solid"
-        return cls([
-            BrushSide.from_node(node)
-            for node in node.nodes_by_type().get("side", [])])
-
-
-class Entity(base.Entity):
-    # TODO: Connections (Entity IO)
-
-    def as_node(self) -> Node:
-        out = Node("entity")
-        out.key_values = [(key, self[key]) for key in self._keys]
-        out.nodes = [
-            Brush.as_node(brush)
-            for brush in self.brushes]
-        return out
-
-    @classmethod
-    def from_node(cls, node: Node) -> Entity:
-        assert node.node_type in ("entity", "world")
-        out = cls(**dict(node.key_values))
-        out.brushes = [
-            Brush.from_node(node)
-            for node in node.nodes_by_type().get("solid", [])]
-        return out
-
-
-# TODO: class DispInfo(base.DispInfo):
 
 
 class ProjectionAxis(map220.ProjectionAxis):
