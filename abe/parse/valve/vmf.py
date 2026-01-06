@@ -173,7 +173,7 @@ class Node:
 
 class ProjectionAxis(map220.ProjectionAxis):
     pattern = re.compile("".join([
-        r"\[ ", " ".join([common.double] * 4), r" \] ", common.double]))
+        r"\[ ?", " ".join([common.double] * 4), r" ?\] ", common.double]))
 
     def __init__(self, axis, offset=None, scale=None):
         scale = 0.25 if scale is None else scale
