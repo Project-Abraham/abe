@@ -12,6 +12,7 @@ import breki
 
 # TODO: Entity connections (Entity IO)
 # TODO: validate "id" for Entity, Brush & BrushSide
+# TODO: preserve "id" for overlays, cubemaps & others
 # TODO: Displacements
 # TODO: `hidden` nodes
 # TODO: visgroup filtering to find ents etc.
@@ -173,7 +174,7 @@ class Node:
 
 class ProjectionAxis(map220.ProjectionAxis):
     pattern = re.compile("".join([
-        r"\[ ?", " ".join([common.double] * 4), r" ?\] ", common.double]))
+        r"\[", " ".join([common.double] * 4), r"\] ", common.double]))
 
     def __init__(self, axis, offset=None, scale=None):
         scale = 0.25 if scale is None else scale
@@ -183,7 +184,7 @@ class ProjectionAxis(map220.ProjectionAxis):
         axis = [common.fstr(a) for a in self.axis]
         offset = common.fstr(self.offset)
         scale = common.fstr(self.scale)
-        return " ".join(["[", *axis, offset, "]", scale])
+        return "".join(["[", " ".join([*axis, offset]), "] ", scale])
 
     @classmethod
     def from_tokens(cls, tokens: List[str]) -> ProjectionAxis:
@@ -273,6 +274,7 @@ class Vmf(base.MapFile, breki.TextFile):
                 "formatversion": 100,
                 "mapversion": 1,
                 "prefab": 0})
+        # NOTE: "editorbuild" can vary, and seems to be optional
         new_nodes.append(version_info)
 
         if "visgroups" in nodes_dict:
@@ -306,6 +308,7 @@ class Vmf(base.MapFile, breki.TextFile):
             "classname": "worldspawn",
             "maxpropscreenwidth": -1}
         # TODO: default skyname & detailmaterial/vbsp from config
+
         # use loaded world_settings, if they exist
         if "world" in nodes_dict:
             assert len(nodes_dict["world"]) == 1
@@ -318,13 +321,11 @@ class Vmf(base.MapFile, breki.TextFile):
         world_node.node_type = "world"
         world_node.update(world_settings)
         new_nodes.append(world_node)
-        # TODO: brush & brushside ids
 
         if len(self.entities) > 1:
             new_nodes.extend([
                 Entity.as_node(entity)
                 for entity in self.entities[1:]])
-        # TODO: entity, brush & brushside ids
 
         if "cameras" in nodes_dict:
             assert len(nodes_dict["cameras"]) == 1
