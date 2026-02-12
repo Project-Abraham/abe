@@ -1,4 +1,10 @@
 # TODOs
+## dependencies
+ - [ ] `breki`
+   - [ ] use `breki.parse.TokenClass` over `parse.common.TokenClass`
+ - [ ] `ass`
+   - [ ] `Brush` -> `ass.Model`
+
 ## tests
  - [ ] `base`
    - [ ] `Brush`
