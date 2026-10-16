@@ -36,7 +36,7 @@ class BrushSide(base.BrushSide, common.TokenClass):
             self.plane, self.shader,
             self.texture_vector.s,
             self.texture_vector.t,
-            self.rotation,
+            self.texture_rotation,
             self.texture_vector.s.scale,
             self.texture_vector.t.scale]))
 

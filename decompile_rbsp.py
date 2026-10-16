@@ -1,5 +1,8 @@
 # rebuild of bsp_tool.extensions.decompile_rbsp
+import collections
+import math
 import os
+import re
 from typing import Dict, Set
 
 import abe
@@ -15,6 +18,62 @@ import ass
 # -- currently built for titanfall 2 maps
 # -- getting brushes from CM_GRID is limiting us to clips
 # -- hammer reports only clip, npcclip & blocklight textures
+
+
+def nearness(bounds, plane, tolerance=1e-4) -> int:
+    """future Plane method"""
+    xs, ys, zs = zip(bounds.mins, bounds.maxs)
+    bounds_vertices = [
+        ass.vector.vec3(x, y, z)
+        for x in xs
+        for y in ys
+        for z in zs]
+    intersect_depths = [
+        plane.test(vertex)
+        for vertex in bounds_vertices]
+    near_vertices = [
+        depth
+        for depth in intersect_depths
+        if math.isclose(depth, 0, abs_tol=tolerance)]
+    return len(near_vertices)  # 2 => bevel, 4 => axial, 0 => miss
+
+
+Entity = Dict[str, str]
+
+
+# NOTE: need to process tricoll for apex legends triggers
+def decompile_trigger(trigger: Entity) -> abe.Entity:
+    # TODO: discard bevel planes (sqrt2 x/y & bounds corners)
+    # map bounds
+    mins_str = trigger["*trigger_bounds_mins"]
+    mins = ass.vector.vec3(*map(float, mins_str.split(" ")))
+    maxs_str = trigger["*trigger_bounds_maxs"]
+    maxs = ass.vector.vec3(*map(float, maxs_str.split(" ")))
+    bounds = ass.physics.AABB.from_mins_maxs(mins, maxs)
+    # collect planes
+    pattern = re.compile(r"\*trigger_brush_([0-9]+)_plane_([0-9]+)")
+    brush_planes = collections.defaultdict(dict)
+    for key, value in trigger.items():
+        match = pattern.match(key)
+        if match is not None:
+            brush_index = int(match.group(1))
+            plane_index = int(match.group(2))
+            a, b, c, d = map(float, value.split(" "))
+            plane = ass.physics.Plane(ass.vector.vec3(a, b, c), d)
+            if nearness(bounds, plane) != 2:  # discard bevel planes
+                brush_planes[brush_index][plane_index] = plane
+    # build entity
+    out = abe.Entity(**{
+        key: value
+        for key, value in trigger.items()
+        if not key.startswith("*trigger_")})
+    # TODO: classname/editorclass lookup table for shader
+    out.brushes = [
+        abe.Brush([
+            abe.BrushSide(plane, shader="tools/toolstrigger")
+            for plane in planes.values()])
+        for brush_index, planes in brush_planes.items()]
+    return out
 
 
 def decompile_brush(bsp, brush_index: int) -> abe.Brush:
@@ -35,7 +94,8 @@ def decompile_brush(bsp, brush_index: int) -> abe.Brush:
     for i, side in enumerate(abe_brush.sides):
         properties = bsp.CM_BRUSH_SIDE_PROPERTIES[i + first_brush_side]
         texdata = bsp.TEXTURE_DATA[properties.texture_data]
-        side.shader = bsp.TEXTURE_DATA_STRING_DATA[texdata.name_index].replace("\\", "/").lower()
+        texture_path = bsp.TEXTURE_DATA_STRING_DATA[texdata.name_index]
+        side.shader = texture_path.replace("\\", "/").lower()
         tv = bsp.CM_BRUSH_SIDE_TEXTURE_VECTORS[first_brush_side + i]
         side.texture_vector.s.axis = tv.s.axis
         side.texture_vector.t.axis = tv.t.axis
@@ -69,7 +129,7 @@ def geosets_range_brush_indices(bsp, start: int, end: int) -> Set[int]:
 # -- so where are the other brushes?
 # -- are they also indexed by cm_grid?
 # -- is this titanfall 2 specific?
-def decompile_brush_entity(bsp, bsp_entity: Dict[str, str]) -> abe.Entity:
+def decompile_brush_entity(bsp, bsp_entity: Entity) -> abe.Entity:
     abe_entity = abe.Entity(**bsp_entity)
     if abe_entity.classname == "worldspawn":
         # NOTE: this should get all the worldspawn geosets, but we'll see
@@ -117,5 +177,24 @@ def decompile_map(bsp) -> abe.MapFile:
             decompile_brush_entity(bsp, bsp_entity)
             for bsp_entity in getattr(bsp, f"ENTITIES_{ent_file}")
             if bsp_entity.get("model", "").startswith("*")])
+
+    # *_spawn.ent point entities
+    out.entities.extend([
+        bsp_entity
+        for bsp_entity in getattr(bsp, "ENTITIES_spawn")
+        if not bsp_entity.get("model", "").startswith("*")])
+
+    # *.0000.bsp_lump trigger entities
+    out.entities.extend([
+        decompile_trigger(trigger)
+        for trigger in bsp.ENTITIES
+        if any(key.startswith("*trigger_") for key in trigger)])
+
+    # *.ent trigger entities
+    for ent_file in ("env", "fx", "script", "snd", "spawn"):
+        out.entities.extend([
+            decompile_trigger(trigger)
+            for trigger in getattr(bsp, f"ENTITIES_{ent_file}")
+            if any(key.startswith("*trigger_") for key in trigger)])
 
     return out

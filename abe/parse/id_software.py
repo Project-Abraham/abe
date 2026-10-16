@@ -41,6 +41,29 @@ class QuakeMap(base.MapFile, breki.TextFile):
     exts = ["*.map"]
     BrushSideClass = BrushSide
 
+    def as_lines(self) -> List[str]:
+        out = list()
+        # TODO: header
+        # TODO: override Brush.__str__ w/ BrushSideClass
+        # -- then we can just use Entity.__str__
+        # -- wouldn't get comments that way tho
+        for entity_index, entity in enumerate(self.entities):
+            out.extend([f"// entity {entity_index}", "{"])
+            out.extend([f'"{k}" "{entity[k]}"' for k in entity._keys])
+            for brush_index, brush in enumerate(entity.brushes):
+                out.extend([f"// brush {brush_index}", "{"])
+                sides = [
+                    self.BrushSideClass(  # copy
+                        side.plane,
+                        side.shader,
+                        side.texture_vector,
+                        side.texture_rotation)
+                    for side in brush.sides]
+                out.extend([str(side) for side in sides])
+                out.append("}")
+            out.append("}")
+        return out
+
     def parse(self):
         if self.is_parsed:
             return
