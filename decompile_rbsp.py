@@ -1,6 +1,5 @@
 # rebuild of bsp_tool.extensions.decompile_rbsp
 import collections
-import math
 import os
 import re
 from typing import Dict, Set
@@ -20,28 +19,10 @@ import ass
 # -- hammer reports only clip, npcclip & blocklight textures
 
 
-def nearness(bounds, plane, tolerance=1e-4) -> int:
-    """future Plane method"""
-    xs, ys, zs = zip(bounds.mins, bounds.maxs)
-    bounds_vertices = [
-        ass.vector.vec3(x, y, z)
-        for x in xs
-        for y in ys
-        for z in zs]
-    intersect_depths = [
-        plane.test(vertex)
-        for vertex in bounds_vertices]
-    near_vertices = [
-        depth
-        for depth in intersect_depths
-        if math.isclose(depth, 0, abs_tol=tolerance)]
-    return len(near_vertices)  # 2 => bevel, 4 => axial, 0 => miss
-
-
 Entity = Dict[str, str]
 
 
-# NOTE: need to process tricoll for apex legends triggers
+# NOTE: need to process starcoll for apex legends triggers
 def decompile_trigger(trigger: Entity) -> abe.Entity:
     # TODO: discard bevel planes (sqrt2 x/y & bounds corners)
     # map bounds
@@ -60,7 +41,7 @@ def decompile_trigger(trigger: Entity) -> abe.Entity:
             plane_index = int(match.group(2))
             a, b, c, d = map(float, value.split(" "))
             plane = ass.physics.Plane(ass.vector.vec3(a, b, c), d)
-            if nearness(bounds, plane) != 2:  # discard bevel planes
+            if not plane.is_bevel_of(bounds):
                 brush_planes[brush_index][plane_index] = plane
     # build entity
     out = abe.Entity(**{
