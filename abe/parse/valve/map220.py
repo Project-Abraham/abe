@@ -31,6 +31,14 @@ class BrushSide(base.BrushSide, common.TokenClass):
         *(r"\[", *(common.double,)*4, r"\]",)*2,
         *(common.double,)*3]))
 
+    def __init__(self, plane, shader=None, texture_vector=None, rotation=None):
+        plane = common.Plane(plane.normal, plane.distance)
+        if texture_vector is not None:
+            texture_vector = texture.TextureVector(
+                ProjectionAxis(*texture_vector.s),
+                ProjectionAxis(*texture_vector.t))
+        super().__init__(plane, shader, texture_vector, rotation)
+
     def __str__(self) -> str:
         return " ".join(map(str, [
             self.plane, self.shader,
@@ -54,3 +62,4 @@ class BrushSide(base.BrushSide, common.TokenClass):
 
 class Valve220Map(id_software.QuakeMap):
     BrushSideClass = BrushSide
+    header = ["// Format: Valve"]

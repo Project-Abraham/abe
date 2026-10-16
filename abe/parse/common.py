@@ -83,11 +83,11 @@ class Point(vector.vec3, TokenClass):
             return str(self)
         else:
             x, y, z = [format(a, format_spec) for a in self]
-            return f"({x} {y} {z})"
+            return f"( {x} {y} {z} )"
 
     def __str__(self):
         x, y, z = map(fstr, self)
-        return f"({x} {y} {z})"
+        return f"( {x} {y} {z} )"
 
     @classmethod
     def from_tokens(cls, tokens: List[str]) -> Point:

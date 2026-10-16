@@ -162,9 +162,6 @@ def decompile_map(bsp) -> abe.MapFile:
     abe_worldspawn = decompile_brush_entity(bsp, bsp_worldspawn)
     out.entities.append(abe_worldspawn)
 
-    # NOTE: currently only brush entities
-    # -- skipping point entities to save on filesize
-
     # *.0000.bsp_lump brush entities
     out.entities.extend([
         decompile_brush_entity(bsp, bsp_entity)
@@ -180,9 +177,11 @@ def decompile_map(bsp) -> abe.MapFile:
 
     # *_spawn.ent point entities
     out.entities.extend([
-        bsp_entity
+        abe.Entity(**bsp_entity)
         for bsp_entity in getattr(bsp, "ENTITIES_spawn")
         if not bsp_entity.get("model", "").startswith("*")])
+
+    # NOTE: skipping non-spawnpoint entities to save on filesize
 
     # *.0000.bsp_lump trigger entities
     out.entities.extend([

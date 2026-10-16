@@ -40,13 +40,10 @@ class BrushSide(base.BrushSide, common.TokenClass):
 class QuakeMap(base.MapFile, breki.TextFile):
     exts = ["*.map"]
     BrushSideClass = BrushSide
+    header: List[str] = ["// Game: Quake"]
 
     def as_lines(self) -> List[str]:
-        out = list()
-        # TODO: header
-        # TODO: override Brush.__str__ w/ BrushSideClass
-        # -- then we can just use Entity.__str__
-        # -- wouldn't get comments that way tho
+        out = [*self.header]
         for entity_index, entity in enumerate(self.entities):
             out.extend([f"// entity {entity_index}", "{"])
             out.extend([f'"{k}" "{entity[k]}"' for k in entity._keys])
