@@ -2,7 +2,7 @@
 import collections
 import os
 import re
-from typing import Dict, Set
+from typing import Dict, Set, Tuple
 
 import abe
 import ass
@@ -105,6 +105,34 @@ def geosets_range_brush_indices(bsp, start: int, end: int) -> Set[int]:
     return brush_indices
 
 
+def geoset_primitives(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
+    primitives = set()
+    straddle_groups = set()
+    for i in indices:
+        geo_set = bsp.CM_GEO_SETS[i]
+        # skip straddle groups we've seen before
+        # BUG: skipping other unique primitives
+        if geo_set.straddle_group != 0:
+            if geo_set.straddle_group in straddle_groups:
+                continue
+            straddle_groups.add(geo_set.straddle_group)
+        # get primitive
+        if geo_set.num_primitives == 1:  # inline prim
+            type_ = geo_set.primitive.type
+            index = geo_set.primitive.index
+            primitives.add((type_, index))
+            # primitives.add(tuple(geo_set.primitive))  # + contents
+        else:  # multiple primitives
+            pstart = geo_set.primitive.index
+            plength = geo_set.num_primitives
+            pend = pstart + plength + 1
+            primitives.update({
+                (prim.type, prim.index)
+                # tuple(prim)  # + contents
+                for prim in bsp.CM_PRIMITIVES[pstart:pend]})
+    return primitives
+
+
 # NOTE: sp_training only uses the first 448 of ~3K brushes
 # -- turns out this is all clip brushes
 # -- so where are the other brushes?
@@ -114,6 +142,7 @@ def decompile_brush_entity(bsp, bsp_entity: Entity) -> abe.Entity:
     abe_entity = abe.Entity(**bsp_entity)
     if abe_entity.classname == "worldspawn":
         # NOTE: this should get all the worldspawn geosets, but we'll see
+        # TODO: grab all grid cells before this one too
         grid_cell = bsp.CM_GRID_CELLS[-len(bsp.MODELS)]
         start = 0
         end = grid_cell.first_geo_set + grid_cell.num_geo_sets
@@ -125,12 +154,16 @@ def decompile_brush_entity(bsp, bsp_entity: Entity) -> abe.Entity:
         del abe_entity["model"]
     else:
         raise RuntimeError("not a brush entity!")
+    # get brushes
     brush_indices = geosets_range_brush_indices(bsp, start, end)
     if len(brush_indices) > 0:
         print(f"{min(brush_indices)=}, {max(brush_indices)=}")
     abe_entity.brushes = [
         decompile_brush(bsp, i)
         for i in sorted(brush_indices)]
+    # TODO: get tricoll
+    # -- create a misc_model @ the same origin
+    # -- set main ent as parent, if it has a targetname or link_guid
     return abe_entity
 
 
