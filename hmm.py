@@ -23,8 +23,9 @@ indices = functools.reduce(
 # prims = decompile_rbsp.geoset_primitives(bsp, indices)
 
 
+# considering accuracy & clarity, this might be the best
 def func_A(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
-    """ignore straddle groups, ignore contents"""
+    """naive"""
     primitives = set()
     for i in indices:
         geo_set = bsp.CM_GEO_SETS[i]
@@ -42,8 +43,9 @@ def func_A(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
     return primitives
 
 
-def func_B(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
-    """ignore straddle groups,  track contents"""
+# bit slower, but unique_contents could be useful later
+def func_B(bsp, indices: Set[int]) -> Set[Tuple[int, int, int]]:
+    """prim contents"""
     primitives = set()
     for i in indices:
         geo_set = bsp.CM_GEO_SETS[i]
@@ -59,8 +61,9 @@ def func_B(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
     return primitives
 
 
+# fastest implementation by a lot! but also inaccurate
 def func_C(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
-    """ track straddle groups, ignore contents"""
+    """straddle skip"""
     primitives = set()
     straddle_groups = set()
     for i in indices:
@@ -83,8 +86,11 @@ def func_C(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
     return primitives
 
 
-def func_D(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
-    """ track straddle groups,  track contents"""
+# have to resort to tuples because types don't technically match
+# MappedArray for GeoSet.Primitive vs. Primitive
+# otherwise this could be a faster naive implementation
+def func_D(bsp, indices: Set[int]) -> Set[Tuple[int, int, int]]:
+    """paranoid"""
     primitives = set()
     straddle_groups = set()
     for i in indices:
@@ -105,25 +111,78 @@ def func_D(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
     return primitives
 
 
-# TODO: func_E, group prims by index first
+# still not good enough!
+# some geo sets are split for seemingly arbitrary reasons
+# same group, contents, primtype & brush side texture
+# even contiguous geosets w/ contiguous primitive lists
+# see: r2/mp_angel_city straddle_group[156]
+def func_E(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
+    """straddle skip fix"""
+    primitives = set()
+    seen = set()
+    for i in indices:
+        geo_set = bsp.CM_GEO_SETS[i]
+        if geo_set.straddle_group != 0:
+            skip_key = (
+                geo_set.straddle_group,
+                geo_set.primitive.unique_contents)
+            if skip_key in seen:
+                continue
+            seen.add(skip_key)
+        if geo_set.num_primitives == 1:
+            type_ = geo_set.primitive.type
+            index = geo_set.primitive.index
+            primitives.add((type_, index))
+        else:
+            pstart = geo_set.primitive.index
+            plength = geo_set.num_primitives
+            pend = pstart + plength
+            primitives.update({
+                (prim.type, prim.index)
+                for prim in bsp.CM_PRIMITIVES[pstart:pend]})
+    return primitives
+
+
+# in theory: accurate & fast
+# in practice: the slowest by miles
+# building the geosets set takes forever
+def func_F(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
+    """dedup geosets"""
+    primitives = set()
+    for geo_set in {bsp.CM_GEO_SETS[i] for i in indices}:
+        # get primitive
+        if geo_set.num_primitives == 1:  # inline prim
+            type_ = geo_set.primitive.type
+            index = geo_set.primitive.index
+            primitives.add((type_, index))
+        else:  # multiple primitives
+            pstart = geo_set.primitive.index
+            plength = geo_set.num_primitives
+            pend = pstart + plength
+            primitives.update({
+                (prim.type, prim.index)
+                for prim in bsp.CM_PRIMITIVES[pstart:pend]})
+    return primitives
 
 
 def straddle_debug(bsp, indices: Set[int]):
+    """for inspecting invalid skips"""
     primitives = set()
     cheeky = collections.defaultdict(set)
     # ^ prims we miss if we skip
     freaky = {"single": 0, "groups": 0}
-    straddle_groups = set()
+    seen = set()
     for i in indices:
         geo_set = bsp.CM_GEO_SETS[i]
         skip = False
         if geo_set.straddle_group != 0:
-            skip = (geo_set.straddle_group in straddle_groups)
-            straddle_groups.add(geo_set.straddle_group)
+            skip_key = (
+                geo_set.straddle_group,
+                geo_set.primitive.unique_contents)
+            skip = (skip_key in seen)
+            seen.add(skip_key)
         if geo_set.num_primitives == 1:
-            type_ = geo_set.primitive.type
-            index = geo_set.primitive.index
-            prim = (type_, index)
+            prim = tuple(geo_set.primitive)
             if skip and prim not in primitives:
                 freaky["single"] += 1
                 cheeky[geo_set.straddle_group].add(prim)
@@ -133,12 +192,12 @@ def straddle_debug(bsp, indices: Set[int]):
             plength = geo_set.num_primitives
             pend = pstart + plength + 1
             for raw_prim in bsp.CM_PRIMITIVES[pstart:pend]:
-                prim = (raw_prim.type, raw_prim.index)
+                prim = tuple(raw_prim)
                 if skip and prim not in primitives:
                     freaky["groups"] += 1
                     cheeky[geo_set.straddle_group].add(prim)
                 primitives.add(prim)
-    return primitives, cheeky, freaky, straddle_groups
+    return primitives, cheeky, freaky, seen
 
 
 if __name__ == "__main__":
@@ -146,9 +205,12 @@ if __name__ == "__main__":
     import timeit
 
     # TODO: precache bsp lumps
+    # -- first run takes significantly longer
+    # -- we need to A/B profile the initial bsp load
+    # -- with & without precaching
 
     # profile funcs
-    for func in (func_A, func_B, func_C, func_D)[::-1]:
+    for func in (func_A, func_B, func_C, func_D, func_E, func_F):
         avg_time = timeit.timeit(lambda: func(bsp, indices), number=10)
 
         start_time = time.monotonic_ns()
@@ -159,6 +221,8 @@ if __name__ == "__main__":
         run_time = end_time - start_time
 
         print(
+            f"{len(prims)} prims",
+            f"{run_time * (10 ** -8):.3f}s",
+            f"{avg_time:.3f}s average",
             f"{func.__name__} ({func.__doc__})",
-            "found", len(prims), "primitives",
-            f"in {run_time * (10 ** -9):.6f} seconds (average: {avg_time:.6f})")
+            sep=" | ")

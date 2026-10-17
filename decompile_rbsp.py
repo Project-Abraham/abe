@@ -107,27 +107,20 @@ def geosets_range_brush_indices(bsp, start: int, end: int) -> Set[int]:
 
 def geoset_primitives(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
     primitives = set()
-    straddle_groups = set()
     for i in indices:
         geo_set = bsp.CM_GEO_SETS[i]
-        # skip straddle groups we've seen before
-        # BUG: skipping other unique primitives
-        if geo_set.straddle_group != 0:
-            if geo_set.straddle_group in straddle_groups:
-                continue
-            straddle_groups.add(geo_set.straddle_group)
         # get primitive
         if geo_set.num_primitives == 1:  # inline prim
             type_ = geo_set.primitive.type
             index = geo_set.primitive.index
             primitives.add((type_, index))
         else:  # multiple primitives
-            pstart = geo_set.primitive.index
-            plength = geo_set.num_primitives
-            pend = pstart + plength
+            start = geo_set.primitive.index
+            length = geo_set.num_primitives
+            end = start + length
             primitives.update({
                 (prim.type, prim.index)
-                for prim in bsp.CM_PRIMITIVES[pstart:pend]})
+                for prim in bsp.CM_PRIMITIVES[start:end]})
     return primitives
 
 
