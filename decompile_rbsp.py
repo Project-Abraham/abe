@@ -121,14 +121,12 @@ def geoset_primitives(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
             type_ = geo_set.primitive.type
             index = geo_set.primitive.index
             primitives.add((type_, index))
-            # primitives.add(tuple(geo_set.primitive))  # + contents
         else:  # multiple primitives
             pstart = geo_set.primitive.index
             plength = geo_set.num_primitives
-            pend = pstart + plength + 1
+            pend = pstart + plength
             primitives.update({
                 (prim.type, prim.index)
-                # tuple(prim)  # + contents
                 for prim in bsp.CM_PRIMITIVES[pstart:pend]})
     return primitives
 

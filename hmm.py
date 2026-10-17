@@ -17,7 +17,7 @@ geo_set_ranges = {
 
 indices = functools.reduce(
     lambda a, b: a | b, (
-        {*range(start, start + length + 1)}
+        {*range(start, start + length)}
         for start, length in geo_set_ranges))
 
 # prims = decompile_rbsp.geoset_primitives(bsp, indices)
@@ -35,7 +35,7 @@ def func_A(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
         else:
             pstart = geo_set.primitive.index
             plength = geo_set.num_primitives
-            pend = pstart + plength + 1
+            pend = pstart + plength
             primitives.update({
                 (prim.type, prim.index)
                 for prim in bsp.CM_PRIMITIVES[pstart:pend]})
@@ -52,7 +52,7 @@ def func_B(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
         else:
             pstart = geo_set.primitive.index
             plength = geo_set.num_primitives
-            pend = pstart + plength + 1
+            pend = pstart + plength
             primitives.update({
                 tuple(prim)
                 for prim in bsp.CM_PRIMITIVES[pstart:pend]})
@@ -76,7 +76,7 @@ def func_C(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
         else:
             pstart = geo_set.primitive.index
             plength = geo_set.num_primitives
-            pend = pstart + plength + 1
+            pend = pstart + plength
             primitives.update({
                 (prim.type, prim.index)
                 for prim in bsp.CM_PRIMITIVES[pstart:pend]})
@@ -98,7 +98,7 @@ def func_D(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
         else:
             pstart = geo_set.primitive.index
             plength = geo_set.num_primitives
-            pend = pstart + plength + 1
+            pend = pstart + plength
             primitives.update({
                 tuple(prim)
                 for prim in bsp.CM_PRIMITIVES[pstart:pend]})
@@ -145,6 +145,9 @@ if __name__ == "__main__":
     import time
     import timeit
 
+    # TODO: precache bsp lumps
+
+    # profile funcs
     for func in (func_A, func_B, func_C, func_D)[::-1]:
         avg_time = timeit.timeit(lambda: func(bsp, indices), number=10)
 
