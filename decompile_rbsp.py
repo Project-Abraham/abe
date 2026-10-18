@@ -1,25 +1,26 @@
 # rebuild of bsp_tool.extensions.decompile_rbsp
 import collections
+import functools
 import os
 import re
-from typing import Dict, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 import abe
 import ass
 
+from bsp_tool.respawn import RespawnBsp as Bsp
+from bsp_tool.branches.respawn import titanfall2 as r2
+
 
 # TODO:
-# -- prop_static
-# -- misc_model / Displacement (Tricoll)
-# -- point entities (skipped for filesize reasons)
+# -- [ ] prop_static
+# -- [X] misc_tricoll
+# -- [X] point entities (skipping all except spawnpoints)
 
-# NOTE:
-# -- currently built for titanfall 2 maps
-# -- getting brushes from CM_GRID is limiting us to clips
-# -- hammer reports only clip, npcclip & blocklight textures
+# NOTE: currently built for titanfall 2 maps
 
 
-Entity = Dict[str, str]
+Entity = Dict[str, str]  # Bsp entity type
 
 
 # NOTE: need to process starcoll for apex legends triggers
@@ -49,6 +50,7 @@ def decompile_trigger(trigger: Entity) -> abe.Entity:
         for key, value in trigger.items()
         if not key.startswith("*trigger_")})
     # TODO: classname/editorclass lookup table for shader
+    # TODO: BrushSide texture_vectors aren't calculated per-side
     out.brushes = [
         abe.Brush([
             abe.BrushSide(plane, shader="tools/toolstrigger")
@@ -57,7 +59,7 @@ def decompile_trigger(trigger: Entity) -> abe.Entity:
     return out
 
 
-def decompile_brush(bsp, brush_index: int) -> abe.Brush:
+def decompile_brush(bsp: Bsp, brush_index: int) -> abe.Brush:
     bsp_brush = bsp.CM_BRUSHES[brush_index]
     # BrushSide Planes
     bounds = ass.physics.AABB.from_origin_extents(
@@ -86,26 +88,7 @@ def decompile_brush(bsp, brush_index: int) -> abe.Brush:
     return abe_brush
 
 
-# NOTE: built for titanfall2
-def geosets_range_brush_indices(bsp, start: int, end: int) -> Set[int]:
-    brush_indices = set()
-    primitive_indices = set()
-    for geo_set in bsp.CM_GEO_SETS[start:end]:
-        if geo_set.num_primitives == 1:
-            if geo_set.primitive.type == 0x00:
-                brush_indices.add(geo_set.primitive.index)
-        else:
-            primitive_indices.update({
-                geo_set.primitive.index + i
-                for i in range(geo_set.num_primitives)})
-    brush_indices.update({
-        bsp.CM_PRIMITIVES[i].index
-        for i in primitive_indices
-        if bsp.CM_PRIMITIVES[i].type == 0x00})
-    return brush_indices
-
-
-def geoset_primitives(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
+def geoset_primitives(bsp: Bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
     primitives = set()
     for i in indices:
         geo_set = bsp.CM_GEO_SETS[i]
@@ -124,81 +107,106 @@ def geoset_primitives(bsp, indices: Set[int]) -> Set[Tuple[int, int]]:
     return primitives
 
 
-# NOTE: sp_training only uses the first 448 of ~3K brushes
-# -- turns out this is all clip brushes
-# -- so where are the other brushes?
-# -- are they also indexed by cm_grid?
-# -- is this titanfall 2 specific?
-def decompile_brush_entity(bsp, bsp_entity: Entity) -> abe.Entity:
+def decompile_solid_entity(bsp: Bsp, bsp_entity: Entity) -> List[abe.Entity]:
     abe_entity = abe.Entity(**bsp_entity)
+    # get GridCell indices
     if abe_entity.classname == "worldspawn":
-        # NOTE: this should get all the worldspawn geosets, but we'll see
-        # TODO: grab all grid cells before this one too
-        grid_cell = bsp.CM_GRID_CELLS[-len(bsp.MODELS)]
-        start = 0
-        end = grid_cell.first_geo_set + grid_cell.num_geo_sets
+        grid_cells = bsp.CM_GRID_CELLS[:-len(bsp.MODELS)]
+        grid_cells.append(bsp.CM_GRID_CELLS[-len(bsp.MODELS)])
+        # TODO: what's the difference between these two?
+        # eliminate duplicate indices
+        spans = {
+            (gc.first_geo_set, gc.num_geo_sets)
+            for gc in grid_cells}
+        indices = functools.reduce(
+                lambda a, b: a | b, (
+                    {*range(start, start + length)}
+                    for start, length in spans))
+        model_index = 0  # keep for status report
     elif abe_entity.get("model", "").startswith("*"):
         model_index = int(abe_entity.model[1:])
         grid_cell = bsp.CM_GRID_CELLS[-len(bsp.MODELS):][model_index]
         start = grid_cell.first_geo_set
-        end = start + grid_cell.num_geo_sets
-        del abe_entity["model"]
+        length = grid_cell.num_geo_sets
+        indices = [*range(start, start + length)]
+        del abe_entity["model"]  # solid ents can't have "model" keyval
     else:
-        raise RuntimeError("not a brush entity!")
-    # get brushes
-    brush_indices = geosets_range_brush_indices(bsp, start, end)
-    if len(brush_indices) > 0:
-        print(f"{min(brush_indices)=}, {max(brush_indices)=}")
-    abe_entity.brushes = [
-        decompile_brush(bsp, i)
-        for i in sorted(brush_indices)]
-    # TODO: get tricoll
-    # -- create a misc_model @ the same origin
-    # -- set main ent as parent, if it has a targetname or link_guid
-    return abe_entity
+        ent_id = f"{bsp_entity['classname']}"
+        # TODO: editorclass / targetname / link_guid / script_ref
+        raise RuntimeError(f"{ent_id} is not a solid entity!")
+    # get geometry
+    # TODO: break off tricoll & prop stages
+    # -- will be optional, for perf reasons
+    tricolls = list()
+    primitives = geoset_primitives(bsp, indices)  # keep for status report
+    # early status report
+    ent_id = f"{bsp_entity['classname']}"
+    # TODO: targetname / link_guid / script_ref
+    type_s = [type_ for type_, index in primitives]
+    census = {type_.name: type_s.count(type_) for type_ in set(type_s)}
+    print(f"{model_index: 3d} {ent_id} {census}")
+    for type_, index in primitives:
+        if type_ == r2.PrimitiveType.BRUSH:
+            abe_entity.brushes.append(decompile_brush(bsp, index))
+        elif type_ == r2.PrimitiveType.TRICOLL:
+            # TODO: group by straddle_group
+            # tricoll[f"tricoll-{index:06d}"] = bsp.tricoll_model(index)
+            tricolls.append(index)
+        elif type_ == r2.PrimitiveType.PROP:
+            ...  # TODO: more point entities
+    # export tricoll (TODO: separate func)
+    if len(tricolls) > 0:
+        scene_filepath = f"tricoll/{bsp.filename[:-4]}/{model_index:03d}.obj"
+        scene = ass.scene.wavefront.Obj.from_models(
+            scene_filepath, {
+                f"tricoll-{index:06d}": bsp.tricoll_model(index)
+                for index in tricolls})
+        models_dir = "/".join([  # HACK
+            "/data/ssd1/Mod/_tools/Source Engine - Respawn",
+            "MRVN-Radiant_games/Titanfall2/models"])
+        scene.save_as("/".join([models_dir, scene_filepath]))
+        print(f"+ {scene_filepath} ({len(tricolls)})")
+        # TODO: set abe_entity as parent
+        # TODO: recalc origin & angles to match abe_entity
+        tricoll_entity = abe.Entity(
+            classname="misc_tricoll",
+            origin="0 0 0",
+            angles="0 0 -90",  # HACK
+            model=f"models/{scene_filepath}")
+        return (abe_entity, tricoll_entity)
+    return (abe_entity,)
 
 
 def decompile_map(bsp) -> abe.MapFile:
     base_filename = os.path.splitext(bsp.filename)[0]
     out = abe.MapFile(f"{base_filename}.map")
 
-    bsp_worldspawn = bsp.ENTITIES[0]
-    assert bsp_worldspawn.get("classname", "") == "worldspawn"
-    abe_worldspawn = decompile_brush_entity(bsp, bsp_worldspawn)
-    out.entities.append(abe_worldspawn)
+    def is_solid(ent: Entity) -> bool:
+        return any([
+            bsp_entity["classname"] == "worldspawn",
+            bsp_entity.get("model", "").startswith("*")])
 
-    # *.0000.bsp_lump brush entities
-    out.entities.extend([
-        decompile_brush_entity(bsp, bsp_entity)
-        for bsp_entity in bsp.ENTITIES
-        if bsp_entity.get("model", "").startswith("*")])
+    def is_trigger(ent: Entity) -> bool:
+        # TEST: would a classname check be faster?
+        return any(key.startswith("*trigger_") for key in ent)
 
-    # *.ent brush entities
-    for ent_file in ("env", "fx", "script", "snd", "spawn"):
-        out.entities.extend([
-            decompile_brush_entity(bsp, bsp_entity)
-            for bsp_entity in getattr(bsp, f"ENTITIES_{ent_file}")
-            if bsp_entity.get("model", "").startswith("*")])
+    # TODO: use bsp.ENTITY_PARTITIONS
+    partitions = ("env", "fx", "script", "snd", "spawn")  # .ent
+    entity_blocks = (
+        "ENTITIES",  # .0000.bsp_lump
+        *(f"ENTITIES_{block}" for block in partitions))
+    for block_name in entity_blocks:
+        for i, bsp_entity in enumerate(getattr(bsp, block_name)):
+            if is_solid(bsp_entity):
+                out.entities.extend(decompile_solid_entity(bsp, bsp_entity))
+            elif is_trigger(bsp_entity):
+                out.entities.append(decompile_trigger(bsp_entity))
+            elif block_name == "ENTITIES_spawn":  # spawnpoints
+                out.entities.append(abe.Entity(**bsp_entity))
+            else:
+                pass  # skip to reduce clutter
 
-    # *_spawn.ent point entities
-    out.entities.extend([
-        abe.Entity(**bsp_entity)
-        for bsp_entity in getattr(bsp, "ENTITIES_spawn")
-        if not bsp_entity.get("model", "").startswith("*")])
-
-    # NOTE: skipping non-spawnpoint entities to save on filesize
-
-    # *.0000.bsp_lump trigger entities
-    out.entities.extend([
-        decompile_trigger(trigger)
-        for trigger in bsp.ENTITIES
-        if any(key.startswith("*trigger_") for key in trigger)])
-
-    # *.ent trigger entities
-    for ent_file in ("env", "fx", "script", "snd", "spawn"):
-        out.entities.extend([
-            decompile_trigger(trigger)
-            for trigger in getattr(bsp, f"ENTITIES_{ent_file}")
-            if any(key.startswith("*trigger_") for key in trigger)])
+    assert len(out.entities) >= 1
+    assert out.entities[0]["classname"] == "worldspawn"
 
     return out
